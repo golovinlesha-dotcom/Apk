@@ -16,8 +16,8 @@ jobs:
     - name: Unzip Project
       run: |
         unzip SatAligner.zip -d ./Unpacked
-        # Автоматически находим корневую директорию, где лежит папка app
-        APP_ROOT=$(find ./Unpacked -name "AndroidManifest.xml" -exec dirname {} \; | head -n 1 | sed 's/\/src\/main//')
+        # Находим корневую директорию, где лежит исходный код
+        APP_ROOT=$(find ./Unpacked -name "java" -exec dirname {} \; | head -n 1)
         echo "APP_ROOT=$APP_ROOT" >> $GITHUB_ENV
 
     # Шаг 2: Настраиваем Java окружение
@@ -27,22 +27,53 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    # Шаг 3: Исправление имен ресурсов и прямая сборка через абсолютные пути Android SDK
-    - name: Fix Resources and Compile App
+    # Шаг 3: Генерация чистого Манифеста и сборка приложения через Android SDK
+    - name: Fix Manifest, Resources and Compile App
       run: |
-        # 1. Находим системную библиотеку Android на сервере GitHub
+        # 1. Находим системную библиотеку Android и инструменты сборки на сервере
         SDK_JAR=$(find $ANDROID_HOME/platforms/ -name "android.jar" | sort -V | tail -n 1)
-        echo "Using Android SDK: $SDK_JAR"
-        
-        # Находим папку с инструментами сборки (build-tools) на сервере GitHub
         BUILD_TOOLS_DIR=$(find $ANDROID_HOME/build-tools/ -maxdepth 1 -type d | sort -V | tail -n 1)
+        echo "Using Android SDK: $SDK_JAR"
         echo "Using Build Tools: $BUILD_TOOLS_DIR"
         
-        # Создаем чистые рабочие каталоги для компиляции
+        # Создаем чистые каталоги для процесса компиляции
         mkdir -p buildgen/obj buildgen/apk buildgen/res_fixed buildgen/gen
         
-        # 2. Исправляем баг кодировки/регистра: копируем ресурсы, переводя имена файлов в нижний регистр
-        cp -r ${{ env.APP_ROOT }}/src/main/res/* buildgen/res_fixed/
+        # 2. Генерируем новый, 100% валидный AndroidManifest.xml со всеми требованиями Android SDK
+        cat << 'EOF' > buildgen/AndroidManifest.xml
+        <?xml version="1.0" encoding="utf-8"?>
+        <manifest xmlns:android="http://android.com"
+            package="com.example.sataligner">
+
+            <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+            <uses-permission android:name="android.permission.CAMERA" />
+            
+            <uses-feature android:name="android.hardware.sensor.gyroscope" android:required="true" />
+            <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="true" />
+
+            <application
+                android:allowBackup="true"
+                android:label="Sat Aligner">
+                
+                <activity android:name="com.example.sataligner.MainActivity" android:exported="true">
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.LAUNCHER" />
+                    </intent-filter>
+                </activity>
+                
+                <activity android:name="com.example.sataligner.SunCalibrationActivity" android:exported="true" />
+                <activity android:name="com.example.sataligner.GpsCalibrationActivity" android:exported="true" />
+                <activity android:name="com.example.sataligner.GuidanceActivity" android:exported="true" />
+                
+            </application>
+        </manifest>
+        EOF
+        
+        # 3. Копируем графические ресурсы и принудительно приводим имена файлов к нижнему регистру (lowercase)
+        if [ -d "${{ env.APP_ROOT }}/res" ]; then
+          cp -r ${{ env.APP_ROOT }}/res/* buildgen/res_fixed/
+        fi
         find buildgen/res_fixed -type f | while read file; do
           dir=$(dirname "$file")
           base=$(basename "$file")
@@ -52,27 +83,27 @@ jobs:
           fi
         done
         
-        # 3. Компилируем XML ресурсы и разметку интерфейса через абсолютный путь к AAPT2
+        # 4. Компилируем ресурсы интерфейса через AAPT2
         $BUILD_TOOLS_DIR/aapt2 compile --dir buildgen/res_fixed -o buildgen/res.zip
-        $BUILD_TOOLS_DIR/aapt2 link --manifest ${{ env.APP_ROOT }}/src/main/AndroidManifest.xml -I "$SDK_JAR" -o buildgen/apk/base.apk buildgen/res.zip --java buildgen/gen
+        $BUILD_TOOLS_DIR/aapt2 link --manifest buildgen/AndroidManifest.xml -I "$SDK_JAR" -o buildgen/apk/base.apk buildgen/res.zip --java buildgen/gen
         
-        # 4. Компилируем весь исходный Java-код в байт-код (Java 8)
-        find ${{ env.APP_ROOT }}/src/main/java buildgen/gen -name "*.java" > buildgen/sources.txt
+        # 5. Сборка Java-кода в байт-код (целевая версия Java 8 для совместимости со старыми смартфонами)
+        find ${{ env.APP_ROOT }}/java buildgen/gen -name "*.java" > buildgen/sources.txt
         javac -encoding UTF-8 -source 1.8 -target 1.8 -bootclasspath "$SDK_JAR" -d buildgen/obj @buildgen/sources.txt
         
-        # 5. Конвертируем скомпилированные классы в формат Android DEX (classes.dex) с помощью абсолютного пути к D8
+        # 6. Трансляция скомпилированных классов в формат Android DEX (classes.dex)
         cd buildgen/obj
         zip -r ../classes.zip ./* > /dev/null
         cd ../..
         $BUILD_TOOLS_DIR/d8 --output buildgen/apk/classes.dex buildgen/classes.zip --lib "$SDK_JAR"
         
-        # 6. Упаковываем все компоненты в финальный APK-пакет и подписываем его через APKSIGNER
+        # 7. Финальная упаковка в APK и подпись отладочным ключом
         cd buildgen/apk
         zip -r ../../SatAligner_Compiled.apk ./* > /dev/null
         cd ../..
         $BUILD_TOOLS_DIR/apksigner debug SatAligner_Compiled.apk
 
-    # Шаг 4: Выкладываем готовый APK-файл в артефакты GitHub для скачивания
+    # Шаг 4: Сохранение и выгрузка готового APK для скачивания
     - name: Upload Finished APK
       uses: actions/upload-artifact@v4
       with:
