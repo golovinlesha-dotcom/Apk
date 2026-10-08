@@ -38,27 +38,27 @@ jobs:
         # Создаем чистые каталоги для процесса компиляции
         mkdir -p buildgen/obj buildgen/apk buildgen/res_fixed buildgen/gen
         
-        # 2. Запись чистого AndroidManifest.xml БЕЗ скрытых отступов YAML (команда прижата к левому краю)
-        cat << 'EOF' > buildgen/AndroidManifest.xml
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://android.com" package="com.example.sataligner">
-<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-<uses-permission android:name="android.permission.CAMERA" />
-<uses-feature android:name="android.hardware.sensor.gyroscope" android:required="true" />
-<uses-feature android:name="android.hardware.sensor.accelerometer" android:required="true" />
-<application android:allowBackup="true" android:label="Sat Aligner">
-<activity android:name="com.example.sataligner.MainActivity" android:exported="true">
-<intent-filter>
-<action android:name="android.intent.action.MAIN" />
-<category android:name="android.intent.category.LAUNCHER" />
-</intent-filter>
-</activity>
-<activity android:name="com.example.sataligner.SunCalibrationActivity" android:exported="true" />
-<activity android:name="com.example.sataligner.GpsCalibrationActivity" android:exported="true" />
-<activity android:name="com.example.sataligner.GuidanceActivity" android:exported="true" />
-</application>
-</manifest>
-EOF
+        # 2. Запись чистого AndroidManifest.xml (символ дефиса '-' позволяет сохранять отступы YAML)
+        cat << -'EOF' > buildgen/AndroidManifest.xml
+	<?xml version="1.0" encoding="utf-8"?>
+	<manifest xmlns:android="http://android.com" package="com.example.sataligner">
+	<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+	<uses-permission android:name="android.permission.CAMERA" />
+	<uses-feature android:name="android.hardware.sensor.gyroscope" android:required="true" />
+	<uses-feature android:name="android.hardware.sensor.accelerometer" android:required="true" />
+	<application android:allowBackup="true" android:label="Sat Aligner">
+	<activity android:name="com.example.sataligner.MainActivity" android:exported="true">
+	<intent-filter>
+	<action android:name="android.intent.action.MAIN" />
+	<category android:name="android.intent.category.LAUNCHER" />
+	</intent-filter>
+	</activity>
+	<activity android:name="com.example.sataligner.SunCalibrationActivity" android:exported="true" />
+	<activity android:name="com.example.sataligner.GpsCalibrationActivity" android:exported="true" />
+	<activity android:name="com.example.sataligner.GuidanceActivity" android:exported="true" />
+	</application>
+	</manifest>
+	EOF
         
         # 3. Копируем графические ресурсы и принудительно приводим имена файлов к нижнему регистру (lowercase)
         if [ -d "${{ env.APP_ROOT }}/res" ]; then
@@ -81,7 +81,7 @@ EOF
         find ${{ env.APP_ROOT }}/java buildgen/gen -name "*.java" > buildgen/sources.txt
         javac -encoding UTF-8 -source 1.8 -target 1.8 -bootclasspath "$SDK_JAR" -d buildgen/obj @buildgen/sources.txt
         
-        # 6. Трасляция скомпилированных классов в формат Android DEX (classes.dex)
+        # 6. Трансляция скомпилированных классов в формат Android DEX (classes.dex)
         cd buildgen/obj && zip -r ../classes.zip ./* > /dev/null && cd ../..
         $BUILD_TOOLS_DIR/d8 --output buildgen/apk/classes.dex buildgen/classes.zip --lib "$SDK_JAR"
         
