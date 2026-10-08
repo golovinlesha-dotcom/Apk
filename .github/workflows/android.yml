@@ -1,32 +1,4 @@
-name: Android CI
-
-on:
-  push:
-    branches: [ "main", "master" ]
-  workflow_dispatch:
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v4
-
-    # Шаг 1: Распаковываем ваш архив SatAligner.zip
-    - name: Unzip Project
-      run: |
-        unzip SatAligner.zip -d ./Unpacked
-        APP_ROOT=$(find ./Unpacked -name "java" -exec dirname {} \; | head -n 1)
-        echo "APP_ROOT=$APP_ROOT" >> $GITHUB_ENV
-
-    # Шаг 2: Настраиваем Java окружение
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-
-    # Шаг 3: Автономная генерация Манифеста через внешний bash и сборка приложения
+    # Шаг 3: Автономная генерация Манифеста с автоматическим удалением отступов и сборка через Android SDK
     - name: Compile Application
       run: |
         # 1. Находим системную библиотеку Android и инструменты сборки на сервере
@@ -35,37 +7,31 @@ jobs:
         echo "Using Android SDK: $SDK_JAR"
         echo "Using Build Tools: $BUILD_TOOLS_DIR"
         
-        # Создаем чистые каталоги для процесса компиляции
         mkdir -p buildgen/obj buildgen/apk buildgen/res_fixed buildgen/gen
         
-        # 2. Создаем изолированный скрипт генерации манифеста, чтобы обойти любые конфликты кавычек в YAML
-        echo '#!/bin/bash' > generate_manifest.sh
-        echo "cat << 'EOF' > buildgen/AndroidManifest.xml" >> generate_manifest.sh
-        echo '<?xml version="1.0" encoding="utf-8"?>' >> generate_manifest.sh
-        echo '<manifest xmlns:android="http://android.com" package="com.example.sataligner">' >> generate_manifest.sh
-        echo '    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />' >> generate_manifest.sh
-        echo '    <uses-permission android:name="android.permission.CAMERA" />' >> generate_manifest.sh
-        echo '    <uses-feature android:name="android.hardware.sensor.gyroscope" android:required="true" />' >> generate_manifest.sh
-        echo '    <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="true" />' >> generate_manifest.sh
-        echo '    <application android:allowBackup="true" android:label="Sat Aligner">' >> generate_manifest.sh
-        echo '        <activity android:name="com.example.sataligner.MainActivity" android:exported="true">' >> generate_manifest.sh
-        echo '            <intent-filter>' >> generate_manifest.sh
-        echo '                <action android:name="android.intent.action.MAIN" />' >> generate_manifest.sh
-        echo '                <category android:name="android.intent.category.LAUNCHER" />' >> generate_manifest.sh
-        echo '            </intent-filter>' >> generate_manifest.sh
-        echo '        </activity>' >> generate_manifest.sh
-        echo '        <activity android:name="com.example.sataligner.SunCalibrationActivity" android:exported="true" />' >> generate_manifest.sh
-        echo '        <activity android:name="com.example.sataligner.GpsCalibrationActivity" android:exported="true" />' >> generate_manifest.sh
-        echo '        <activity android:name="com.example.sataligner.GuidanceActivity" android:exported="true" />' >> generate_manifest.sh
-        echo '    </application>' >> generate_manifest.sh
-        echo '</manifest>' >> generate_manifest.sh
-        echo 'EOF' >> generate_manifest.sh
+        # 2. Запись структуры манифеста с принудительным автоматическим удалением любых отступов YAML на лету
+        cat << 'MANIFEST_EOF' | sed 's/^[ \t]*//' > buildgen/AndroidManifest.xml
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://android.com" package="com.example.sataligner">
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+<uses-permission android:name="android.permission.CAMERA" />
+<uses-feature android:name="android.hardware.sensor.gyroscope" android:required="true" />
+<uses-feature android:name="android.hardware.sensor.accelerometer" android:required="true" />
+<application android:allowBackup="true" android:label="Sat Aligner">
+<activity android:name="com.example.sataligner.MainActivity" android:exported="true">
+<intent-filter>
+<action android:name="android.intent.action.MAIN" />
+<category android:name="android.intent.category.LAUNCHER" />
+</intent-filter>
+</activity>
+<activity android:name="com.example.sataligner.SunCalibrationActivity" android:exported="true" />
+<activity android:name="com.example.sataligner.GpsCalibrationActivity" android:exported="true" />
+<activity android:name="com.example.sataligner.GuidanceActivity" android:exported="true" />
+</application>
+</manifest>
+MANIFEST_EOF
         
-        # Запускаем созданный генератор
-        chmod +x generate_manifest.sh
-        ./generate_manifest.sh
-        
-        # Проверяем, что манифест создался корректно
+        # Выводим финальный файл в лог для стопроцентной проверки перед линковкой
         cat buildgen/AndroidManifest.xml
         
         # 3. Копируем графические ресурсы и принудительно приводим имена файлов к нижнему регистру (lowercase)
