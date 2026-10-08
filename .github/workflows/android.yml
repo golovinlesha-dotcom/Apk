@@ -27,12 +27,16 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    # Шаг 3: Исправление имен ресурсов и прямая сборка через Android SDK Tools
+    # Шаг 3: Исправление имен ресурсов и прямая сборка через абсолютные пути Android SDK
     - name: Fix Resources and Compile App
       run: |
         # 1. Находим системную библиотеку Android на сервере GitHub
         SDK_JAR=$(find $ANDROID_HOME/platforms/ -name "android.jar" | sort -V | tail -n 1)
         echo "Using Android SDK: $SDK_JAR"
+        
+        # Находим папку с инструментами сборки (build-tools) на сервере GitHub
+        BUILD_TOOLS_DIR=$(find $ANDROID_HOME/build-tools/ -maxdepth 1 -type d | sort -V | tail -n 1)
+        echo "Using Build Tools: $BUILD_TOOLS_DIR"
         
         # Создаем чистые рабочие каталоги для компиляции
         mkdir -p buildgen/obj buildgen/apk buildgen/res_fixed buildgen/gen
@@ -48,25 +52,25 @@ jobs:
           fi
         done
         
-        # 3. Компилируем XML ресурсы и разметку интерфейса через AAPT2
-        aapt2 compile --dir buildgen/res_fixed -o buildgen/res.zip
-        aapt2 link --manifest ${{ env.APP_ROOT }}/src/main/AndroidManifest.xml -I "$SDK_JAR" -o buildgen/apk/base.apk buildgen/res.zip --java buildgen/gen
+        # 3. Компилируем XML ресурсы и разметку интерфейса через абсолютный путь к AAPT2
+        $BUILD_TOOLS_DIR/aapt2 compile --dir buildgen/res_fixed -o buildgen/res.zip
+        $BUILD_TOOLS_DIR/aapt2 link --manifest ${{ env.APP_ROOT }}/src/main/AndroidManifest.xml -I "$SDK_JAR" -o buildgen/apk/base.apk buildgen/res.zip --java buildgen/gen
         
         # 4. Компилируем весь исходный Java-код в байт-код (Java 8)
         find ${{ env.APP_ROOT }}/src/main/java buildgen/gen -name "*.java" > buildgen/sources.txt
         javac -encoding UTF-8 -source 1.8 -target 1.8 -bootclasspath "$SDK_JAR" -d buildgen/obj @buildgen/sources.txt
         
-        # 5. Конвертируем скомпилированные классы в формат Android DEX (classes.dex)
+        # 5. Конвертируем скомпилированные классы в формат Android DEX (classes.dex) с помощью абсолютного пути к D8
         cd buildgen/obj
         zip -r ../classes.zip ./* > /dev/null
         cd ../..
-        d8 --output buildgen/apk/classes.dex buildgen/classes.zip --lib "$SDK_JAR"
+        $BUILD_TOOLS_DIR/d8 --output buildgen/apk/classes.dex buildgen/classes.zip --lib "$SDK_JAR"
         
-        # 6. Упаковываем все компоненты в финальный APK-пакет и подписываем его
+        # 6. Упаковываем все компоненты в финальный APK-пакет и подписываем его через APKSIGNER
         cd buildgen/apk
         zip -r ../../SatAligner_Compiled.apk ./* > /dev/null
         cd ../..
-        apksigner debug SatAligner_Compiled.apk
+        $BUILD_TOOLS_DIR/apksigner debug SatAligner_Compiled.apk
 
     # Шаг 4: Выкладываем готовый APK-файл в артефакты GitHub для скачивания
     - name: Upload Finished APK
