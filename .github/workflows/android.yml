@@ -12,42 +12,53 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    # Шаг 1: Распаковываем ваш архив SatAligner.zip
     - name: Unzip Project
       run: |
         unzip SatAligner.zip -d ./Unpacked
         APP_ROOT=$(find ./Unpacked -name "java" -exec dirname {} \; | head -n 1)
         echo "APP_ROOT=$APP_ROOT" >> $GITHUB_ENV
 
+    # Шаг 2: Настраиваем Java окружение
     - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
         java-version: '17'
         distribution: 'temurin'
 
+    # Шаг 3: Надежная генерация Манифеста через echo -e и сборка приложения
     - name: Compile Application
       run: |
+        # 1. Находим системную библиотеку Android и инструменты сборки на сервере
         SDK_JAR=$(find $ANDROID_HOME/platforms/ -name "android.jar" | sort -V | tail -n 1)
         BUILD_TOOLS_DIR=$(find $ANDROID_HOME/build-tools/ -maxdepth 1 -type d | sort -V | tail -n 1)
         echo "Using Android SDK: $SDK_JAR"
         echo "Using Build Tools: $BUILD_TOOLS_DIR"
         
+        # Создаем чистые каталоги для процесса компиляции
         mkdir -p buildgen/obj buildgen/apk buildgen/res_fixed buildgen/gen
-    
-        # Декодируем 100% валидный чистый манифест из проверенной Base64 строки
-        echo "PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPG1hbmlmZXN0IHhtbG5zOmFuZHJvaWQ9Imh0dHA6Ly9zY2hlbWFzLmFuZHJvaWQuY29tL2Fway9yZXMvYW5kcm9pZCIgcGFja2FnZT0iY29tLmV4YW1wbGUuc2F0YWxpZ25lciI+CiAgICA8dXNlcy1wZXJtaXNzaW9uIGFuZHJvaWQ6bmFtZT0iZG5kcm9pZC5wZXJtaXNzaW9uLkFDQ0VTU19GSU5FX0xPQ0FUSU9OIiAvPgogICAgPHVzZXMtcGVybWlzc2lvbiBhbmRyb2lkOm5hbWU9ImFuZHJvaWQucGVybWlzc2lvbi5DQU1FUkEiIC8+CiAgICA8dXNlcy1mZWF0dXJlIGFuZHJvaWQ6bmFtZT0iYW5kcm9pZC5oYXJkd2FyZS5zZW5zb3IuZ3lyb3Njb3BlIiBhbmRyb2lkOnJlcXVpcmVkPSJ0cnVlIiAvPgogICAgPHVzZXMtZmVhdHVyZSBhbmRyb2lkOm5hbWU9ImFuZHJvaWQuaGFyZHdhcmUuc2Vuc29yLmFjY2VsZXJvbWV0ZXIiIGFuZHJvaWQ6cmVxdWlyZWQ9InRydWUiIC8+CiAgICA8YXBwbGljYXRpb24gYW5kcm9pZDphbGxvd0JhY2t1PSJ0cnVlIiBhbmRyb2lkOmxhYmVsPSJTYXQgQWxpZ25lciI+CiAgICAgICAgPGFjdGl2aXR5IGFuZHJvaWQ6bmFtZT0icomuZXhhbXBsZS5zYXRhbGlnbmVyLk1haW5BY3Rpdml0eSIgYW5kcm9pZDpleHBvcnRlZD0idHJ1ZSI+CiAgICAgICAgICAgIDxpbnRlbnQtZmlsdGVyPgogICAgICAgICAgICAgICAgPGFjdGlvbiBhbmRyb2lkOm5hbWU9ImFuZHJvaWQuaW50ZW50LmFjdGlvbi5NQUlOIiAvPgogICAgICAgICAgICAgICAgPGNhdGVnb3J5IGFuZHJvaWQ6bmFtZT0iYW5kcm9pZC5pbnRlbnQuY2F0ZWdvcnkuTEFVTkNIRVIiIC8+CiAgICAgICAgICAgIDwvaW50ZW50LWZpbHRlcj4KICAgICAgICA8L2FjdGl2aXR5PgogICAgICAgIDxhY3Rpdml0eSBhbmRyb2lkOm5hbWU9ImNvbS5leGFtcGxlLnNhdGFsaWduZXIuU3VuQ2FsaWJyYXRpb25BY3Rpdml0eSIgYW5kcm9pZDpleHBvcnRlZD0idHJ1ZSIgLz4KICAgICAgICA8YWN0aXZpdHkgYW5kcm9pZDpuYW1lPSJjb20uZXhhbXBsZS5zYXRhbGlnbmVyLkdwc0NhbGlicmF0aW9uQWN0aXZpdHkiIGFuZHJvaWQ6ZXhwb3J0ZWQ9InRydWUiIC8+CiAgICAgICAgPGFjdGl2aXR5IGFuZHJvaWQ6bmFtZT0iY29tLmV4YW1wbGUuc2F0YWxpZ25lci5HdWlkYW5jZUFjdGl2aXR5IiBhbmRyb2lkOmV4cG9ydGVkPSJ0cnVlIiAvPgogICAgPC9hcHBsaWNhdGlvbj4KPC9tYW5pZmVzdD4=" | base64 -d > buildgen/AndroidManifest.xml
         
-        # Исправляем опечатку в манифесте, если в base64 проскочил лишний символ
-        sed -i 's/ZG5kcm9pZC9hbmRyb2lkL2c' buildgen/AndroidManifest.xml
-        sed -i 's/com.lehu/com.example/g' buildgen/AndroidManifest.xml
-        sed -i 's/com.com./com./g' buildgen/AndroidManifest.xml
-        sed -i 's/com.exhtmple/com.example/g' buildgen/AndroidManifest.xml
-        sed -i 's/com.exh/com.example/g' buildgen/AndroidManifest.xml
-        sed -i 's/dndroid/android/g' buildgen/AndroidManifest.xml
-        sed -i 's/com.er/com.example/g' buildgen/AndroidManifest.xml
-        sed -i 's/com.ex\([a-z]\)mple/com.example/g' buildgen/AndroidManifest.xml
-        sed -i 's/com.ez\([a-z]\)mple/com.example/g' buildgen/AndroidManifest.xml
-        sed -i 's/com.e\([a-z0-9]\{2\}\)mple/com.example/g' buildgen/AndroidManifest.xml
-
+        # 2. Построчно генерируем идеальный AndroidManifest.xml без конфликтов кавычек YAML
+        echo -e '<?xml version="1.0" encoding="utf-8"?>' > buildgen/AndroidManifest.xml
+        echo -e '<manifest xmlns:android="http://android.com" package="com.example.sataligner">' >> buildgen/AndroidManifest.xml
+        echo -e '    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />' >> buildgen/AndroidManifest.xml
+        echo -e '    <uses-permission android:name="android.permission.CAMERA" />' >> buildgen/AndroidManifest.xml
+        echo -e '    <uses-feature android:name="android.hardware.sensor.gyroscope" android:required="true" />' >> buildgen/AndroidManifest.xml
+        echo -e '    <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="true" />' >> buildgen/AndroidManifest.xml
+        echo -e '    <application android:allowBackup="true" android:label="Sat Aligner">' >> buildgen/AndroidManifest.xml
+        echo -e '        <activity android:name="com.example.sataligner.MainActivity" android:exported="true">' >> buildgen/AndroidManifest.xml
+        echo -e '            <intent-filter>' >> buildgen/AndroidManifest.xml
+        echo -e '                <action android:name="android.intent.action.MAIN" />' >> buildgen/AndroidManifest.xml
+        echo -e '                <category android:name="android.intent.category.LAUNCHER" />' >> buildgen/AndroidManifest.xml
+        echo -e '            </intent-filter>' >> buildgen/AndroidManifest.xml
+        echo -e '        </activity>' >> buildgen/AndroidManifest.xml
+        echo -e '        <activity android:name="com.example.sataligner.SunCalibrationActivity" android:exported="true" />' >> buildgen/AndroidManifest.xml
+        echo -e '        <activity android:name="com.example.sataligner.GpsCalibrationActivity" android:exported="true" />' >> buildgen/AndroidManifest.xml
+        echo -e '        <activity android:name="com.example.sataligner.GuidanceActivity" android:exported="true" />' >> buildgen/AndroidManifest.xml
+        echo -e '    </application>' >> buildgen/AndroidManifest.xml
+        echo -e '</manifest>' >> buildgen/AndroidManifest.xml
+        
+        # 3. Копируем графические ресурсы и принудительно приводим имена файлов к нижнему регистру (lowercase)
         if [ -d "${{ env.APP_ROOT }}/res" ]; then
           cp -r ${{ env.APP_ROOT }}/res/* buildgen/res_fixed/
         fi
@@ -60,18 +71,23 @@ jobs:
           fi
         done
         
+        # 4. Компилируем ресурсы интерфейса через AAPT2
         $BUILD_TOOLS_DIR/aapt2 compile --dir buildgen/res_fixed -o buildgen/res.zip
         $BUILD_TOOLS_DIR/aapt2 link --manifest buildgen/AndroidManifest.xml -I "$SDK_JAR" -o buildgen/apk/base.apk buildgen/res.zip --java buildgen/gen
         
+        # 5. Сборка Java-кода в байт-код (Java 8)
         find ${{ env.APP_ROOT }}/java buildgen/gen -name "*.java" > buildgen/sources.txt
         javac -encoding UTF-8 -source 1.8 -target 1.8 -bootclasspath "$SDK_JAR" -d buildgen/obj @buildgen/sources.txt
         
+        # 6. Трансляция скомпилированных классов в формат Android DEX (classes.dex)
         cd buildgen/obj && zip -r ../classes.zip ./* > /dev/null && cd ../..
         $BUILD_TOOLS_DIR/d8 --output buildgen/apk/classes.dex buildgen/classes.zip --lib "$SDK_JAR"
         
+        # 7. Финальная упаковка в APK и подпись отладочным ключом
         cd buildgen/apk && zip -r ../../SatAligner_Compiled.apk ./* > /dev/null && cd ../..
         $BUILD_TOOLS_DIR/apksigner debug SatAligner_Compiled.apk
 
+    # Шаг 4: Сохранение и выгрузка готового APK для скачивания
     - name: Upload Finished APK
       uses: actions/upload-artifact@v4
       with:
