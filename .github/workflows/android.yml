@@ -28,7 +28,7 @@ jobs:
         
         # Записываем манифест БЕЗ ПЕРЕНОСОВ СТРОК И ОТСТУПОВ внутри тегов. Текст ниже — это ОДНА СПЛОШНАЯ СТРОКА БЕЗ ЕДИНОГО РАЗРЫВА!
         echo '<?xml version="1.0" encoding="utf-8"?><manifest xmlns:android="http://android.com" package="com.example.sataligner"><uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/><uses-permission android:name="android.permission.CAMERA"/><uses-feature android:name="android.hardware.sensor.gyroscope" android:required="true"/><uses-feature android:name="android.hardware.sensor.accelerometer" android:required="true"/><application android:allowBackup="true" android:label="Sat Aligner"><activity android:name="com.example.sataligner.MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity><activity android:name="com.example.sataligner.SunCalibrationActivity" android:exported="true"/><activity android:name="com.example.sataligner.GpsCalibrationActivity" android:exported="true"/><activity android:name="com.example.sataligner.GuidanceActivity" android:exported="true"/></application></manifest>' > buildgen/AndroidManifest.xml
-        
+
         # Принудительно очищаем файл от любых скрытых символов возврата каретки \r
         sed -i 's/\r//g' buildgen/AndroidManifest.xml
         
