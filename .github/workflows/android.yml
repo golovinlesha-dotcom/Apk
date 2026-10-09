@@ -26,11 +26,13 @@ jobs:
         BUILD_TOOLS_DIR=$(find $ANDROID_HOME/build-tools/ -maxdepth 1 -type d | sort -V | tail -n 1)
         mkdir -p buildgen/obj buildgen/apk buildgen/res_fixed buildgen/gen
         
-        # Находим и копируем идеальный манифест прямо из вашего ZIP-архива
+        # Находим манифест в архиве
         ORIGINAL_MANIFEST=$(find ./Unpacked -name "AndroidManifest.xml" | head -n 1)
-        cp "$ORIGINAL_MANIFEST" buildgen/AndroidManifest.xml
         
-        # Проверяем структуру скопированного файла в логе
+        # ТОТАЛЬНАЯ ОЧИСТКА: Удаляем неразрывные пробелы (\xc2\xa0) и скрытые спецсимволы, ломающие aapt2
+        cat "$ORIGINAL_MANIFEST" | tr -d '\r' | sed 's/\xc2\xa0/ /g' > buildgen/AndroidManifest.xml
+        
+        # Проверяем очищенную структуру в логе
         cat buildgen/AndroidManifest.xml
         
         if [ -d "$APP_ROOT/res" ]; then cp -r $APP_ROOT/res/* buildgen/res_fixed/; fi
