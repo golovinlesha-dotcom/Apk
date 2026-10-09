@@ -26,7 +26,12 @@ jobs:
         BUILD_TOOLS_DIR=$(find $ANDROID_HOME/build-tools/ -maxdepth 1 -type d | sort -V | tail -n 1)
         mkdir -p buildgen/obj buildgen/apk buildgen/res_fixed buildgen/gen
         
-        echo '<?xml version="1.0" encoding="utf-8"?><manifest xmlns:android="http://android.com" package="com.example.sataligner"><uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/><uses-permission android:name="android.permission.CAMERA"/><uses-feature android:name="android.hardware.sensor.gyroscope" android:required="true"/><uses-feature android:name="android.hardware.sensor.accelerometer" android:required="true"/><application android:allowBackup="true" android:label="Sat Aligner"><activity android:name="com.example.sataligner.MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity><activity android:name="com.example.sataligner.SunCalibrationActivity" android:exported="true"/><activity android:name="com.example.sataligner.GpsCalibrationActivity" android:exported="true"/><activity android:name="com.example.sataligner.GuidanceActivity" android:exported="true"/></application></manifest>' > buildgen/AndroidManifest.xml
+        # Находим и копируем идеальный манифест прямо из вашего ZIP-архива
+        ORIGINAL_MANIFEST=$(find ./Unpacked -name "AndroidManifest.xml" | head -n 1)
+        cp "$ORIGINAL_MANIFEST" buildgen/AndroidManifest.xml
+        
+        # Проверяем структуру скопированного файла в логе
+        cat buildgen/AndroidManifest.xml
         
         if [ -d "$APP_ROOT/res" ]; then cp -r $APP_ROOT/res/* buildgen/res_fixed/; fi
         $BUILD_TOOLS_DIR/aapt2 compile --dir buildgen/res_fixed -o buildgen/res.zip
