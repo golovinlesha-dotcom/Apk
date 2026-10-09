@@ -26,7 +26,7 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    # Шаг 3: Исправленная сборка приложения с чистым Base64-манифестом
+    # Шаг 3: Монолитная сборка приложения через нативные инструменты Android SDK
     - name: Compile Application
       run: |
         SDK_JAR=$(find $ANDROID_HOME/platforms/ -name "android.jar" | sort -V | tail -n 1)
@@ -36,15 +36,37 @@ jobs:
         
         mkdir -p buildgen/obj buildgen/apk buildgen/res_fixed buildgen/gen
         
-        # Декодируем 100% валидный манифест БЕЗ опечаток в слове allowBackup
-        echo "PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4K...TRpZmVzdD4=" | base64 -d 2>/dev/null || echo '<?xml version="1.0" encoding="utf-8"?><manifest xmlns:android="http://android.com" package="com.example.sataligner"><uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/><uses-permission android:name="android.permission.CAMERA"/><uses-feature android:name="android.hardware.sensor.gyroscope" android:required="true"/><uses-feature android:name="android.hardware.sensor.accelerometer" android:required="true"/><application android:allowBackup="true" android:label="Sat Aligner"><activity android:name="com.example.sataligner.MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity><activity android:name="com.example.sataligner.SunCalibrationActivity" android:exported="true"/><activity android:name="com.example.sataligner.GpsCalibrationActivity" android:exported="true"/><activity android:name="com.example.sataligner.GuidanceActivity" android:exported="true"/></application></manifest>' > buildgen/AndroidManifest.xml
+        # Запись идеальной структуры манифеста. Строки ниже НАМЕРЕННО прижаты к левому краю, чтобы исключить баги пробелов YAML!
+        cat << 'EOF' > buildgen/AndroidManifest.xml
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://android.com" package="com.example.sataligner">
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.sensor.gyroscope" android:required="true" />
+    <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="true" />
+    <application android:allowBackup="true" android:label="Sat Aligner">
+        <activity android:name="com.example.sataligner.MainActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity android:name="com.example.sataligner.SunCalibrationActivity" android:exported="true" />
+        <activity android:name="com.example.sataligner.GpsCalibrationActivity" android:exported="true" />
+        <activity android:name="com.example.sataligner.GuidanceActivity" android:exported="true" />
+    </application>
+</manifest>
+EOF
+
+        # Проверяем структуру сгенерированного файла в логе
+        cat buildgen/AndroidManifest.xml
 
         # Копируем графические ресурсы
         if [ -d "${{ env.APP_ROOT }}/res" ]; then
           cp -r ${{ env.APP_ROOT }}/res/* buildgen/res_fixed/
         fi
         
-        # Безопасное и быстрое переименование папок в нижний регистр
+        # Безопасное переименование папок в нижний регистр для aapt2
         find buildgen/res_fixed -type f -exec sh -c '
           for f; do
             dir=$(dirname "$f")
